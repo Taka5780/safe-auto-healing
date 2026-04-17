@@ -1,0 +1,6 @@
+- name: Setup Web Server and Monitoring
+  hosts: web
+  become: true
+  roles:
+    - nginx
+    - monitoring

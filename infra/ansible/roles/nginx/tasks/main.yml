@@ -1,0 +1,16 @@
+- name: Install Nginx
+  ansible.builtin.dnf:
+    name: nginx
+    state: present
+
+- name: Start and Enable Nginx
+  ansible.builtin.systemd:
+    name: nginx
+    state: started
+    enabled: true
+
+- name: Create a simple index.html
+  ansible.builtin.copy:
+    content: "<h1>Safe Auto-Healing System: Active</h1>"
+    dest: /usr/share/nginx/html/index.html
+    mode: "0644"
