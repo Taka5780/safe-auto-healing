@@ -1,3 +1,6 @@
+data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
+
 resource "aws_iam_role" "lambda_role" {
   name = "safe-auto-healing-lambda-role"
 
@@ -19,23 +22,38 @@ resource "aws_iam_role_policy" "lambda_policy" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect = "Allow"
-        Action = [
-          "ssm:SendCommand",
-          "ssm:GetCommandInvocation",
-          "ssm:ListCommandInvocations",
-          "ec2:DescribeInstances"
-        ]
+        Effect   = "Allow"
+        Action   = "ec2:DescribeInstances"
         Resource = "*"
       },
       {
         Effect = "Allow"
         Action = [
-          "logs:CreateLogGroup",
+          "ssm:SendCommand",
+          "ssm:ListCommandInvocations"
+        ]
+        Resource = [
+          "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:instance/*",
+          "arn:aws:ssm:${data.aws_region.current.name}::document/AWS-RunShellScript"
+        ]
+      },
+      {
+        Effect   = "Allow"
+        Action   = "ssm:GetCommandInvocation"
+        Resource = "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
           "logs:CreateLogStream",
           "logs:PutLogEvents"
         ]
-        Resource = "arn:aws:logs:*:*:*"
+        Resource = "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/safe-auto-healing-lambda:*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = "logs:CreateLogGroup"
+        Resource = "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:*"
       }
     ]
   })
@@ -51,9 +69,9 @@ resource "aws_lambda_function" "recovery_lambda" {
   filename      = data.archive_file.lambda_zip.output_path
   function_name = "safe-auto-healing-lambda"
   role          = aws_iam_role.lambda_role.arn
-  handler       = "handler.lambda_handler" # handler.py の lambda_handler を呼ぶ
+  handler       = "handler.lambda_handler"
   runtime       = "python3.12"
-  timeout       = 60 # SSMの応答待ちを考慮
+  timeout       = 60
 
   source_code_hash = data.archive_file.lambda_zip.output_base64sha256
 
@@ -69,5 +87,6 @@ resource "aws_lambda_permission" "allow_cloudwatch" {
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.recovery_lambda.function_name
   principal     = "lambda.alarms.cloudwatch.amazonaws.com"
-  source_arn    = aws_cloudwatch_metric_alarm.nginx_health_alarm.arn
+
+  source_arn = "arn:aws:cloudwatch:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:alarm:*"
 }

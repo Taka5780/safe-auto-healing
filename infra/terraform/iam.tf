@@ -1,6 +1,6 @@
 # Definition of the Roll Body
 resource "aws_iam_role" "ec2_role" {
-  name = "safe-auto-healing-ec2-role" # 修正
+  name = "safe-auto-healing-ec2-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"

@@ -1,0 +1,4 @@
+- name: Install stress tool
+  ansible.builtin.dnf:
+    name: stress
+    state: present

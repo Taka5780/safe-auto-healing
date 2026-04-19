@@ -3,7 +3,7 @@
 ## ■ Overview
 
 This project is an incident response automation system built on AWS.
-Its primary goal is to reduce MTTR (Mean Time To Recovery) by automating the recovery process after alert detection.
+Its primary goal is to reduce MTTR (Mean Time To Recovery) by optimizing the response process after alert detection.
 
 Rather than fully automating everything, this system focuses on **safe and controlled automation**, while preserving human decision-making where necessary.
 
@@ -17,7 +17,7 @@ In real-world operations, the following issues are common:
 * Lack of visibility in incident handling
 * Inconsistent recovery time depending on the operator
 
-To address these problems, this system redesigns the workflow from detection to recovery and provides a **faster and more reliable response process**.
+To address these problems, this system redesigns the workflow from detection to response and provides a **faster and more reliable incident handling process**.
 
 ---
 
@@ -33,9 +33,9 @@ To address these problems, this system redesigns the workflow from detection to 
 ## ■ Architecture
 
 * EC2 (target instance)
-* CloudWatch (monitoring and alerting)
-* Lambda (auto-healing logic)
-* Systems Manager (SSM) (remote command execution)
+* Amazon CloudWatch (monitoring and alerting)
+* AWS Lambda (auto-healing and decision logic)
+* AWS Systems Manager (SSM) (remote command execution)
 * Slack (notification)
 
 ---
@@ -46,21 +46,21 @@ CloudWatch Alarm
 ↓
 Lambda (Python)
 ↓
-Restart Nginx via SSM
+Action or Decision Support
 ↓
-HTTP health check
-↓
-Slack notification
+Slack Notification
 
 ---
 
-## ■ Scenario 1: Auto-Healing (L1)
+# ■ Scenario 1: Auto-Healing (L1)
 
-### ■ Description
+## ■ Description
 
 Automatically recovers from minor and well-understood failures.
 
-### ■ Workflow
+---
+
+## ■ Workflow
 
 1. CloudWatch detects an anomaly (e.g., CPU spike or HTTP failure)
 2. Lambda function is triggered
@@ -70,16 +70,17 @@ Automatically recovers from minor and well-understood failures.
 
 ---
 
-### ■ Slack Notification Example
+## ■ Slack Notification Example
 
-```id="m4w1u5"
+```text
 [Auto-Healing SUCCESS]
 
-Time: 2026-04-17 17:52:05
-Instance: i-xxxxxxxxxxxx
+Time: 2026-04-17 17:52:05 (JST)
+Instance: safe-auto-healing-web-server (i-xxxxxxxxxxxx)
 Alarm: safe-auto-healing-nginx-down
-Action: Nginx Restart
+Action: Nginx Restart (L1)
 Result: OK
+Detail: Nginx is back online and responding to HTTP 200.
 ```
 
 ---
@@ -88,7 +89,7 @@ Result: OK
 
 ### 1. Safe Target Control (Tag-based)
 
-```id="1zz0t2"
+```
 auto-healing=true
 ```
 
@@ -100,7 +101,7 @@ Only instances with this tag are eligible for auto-healing.
 
 Handles intermediate states such as:
 
-```id="jbbf8v"
+```
 Pending / InProgress
 ```
 
@@ -110,7 +111,7 @@ Ensures actions are executed only after completion.
 
 ### 3. Retry Mechanism
 
-```id="mcl20b"
+```
 Up to 5 health check attempts
 ```
 
@@ -125,9 +126,115 @@ Improves resilience against transient failures.
 
 ---
 
+# ■ Scenario 2: Human-in-the-Loop Decision (L2)
+
+## ■ Description
+
+Handles incidents that cannot be safely auto-recovered.
+Instead of executing actions automatically, the system **assists human decision-making** by providing contextual information and recommended actions.
+
+---
+
+## ■ Workflow
+
+1. CloudWatch detects an anomaly (e.g., CPU spike)
+2. Lambda function is triggered
+3. Diagnostic data is collected via SSM (e.g., top CPU processes)
+4. A structured alert is sent to Slack
+5. Human operator reviews and takes appropriate action
+
+---
+
+## ■ Slack Notification Example
+
+```text
+🚨 [ALERT] Service Impact Suspected
+
+Instance: safe-auto-healing-web-server (i-xxxxxxxxxxxx)
+Alarm: CPU High
+Value: Over 30% (As detected)
+
+Additional Info:
+- Current status: running
+- Triggered at: 2026-04-20 02:08:21 (JST)
+- Recovery action: None (Investigation only)
+
+Suggested Actions:
+1. Check the process list below
+2. Reboot instance if necessary
+3. Check application logs
+
+Status: [UNRESOLVED]
+
+---
+
+Current Top Processes:
+PID   USER   %CPU   COMMAND
+...
+```
+
+---
+
+## ■ Key Features
+
+### 1. Human-Centric Design
+
+* No automatic recovery for uncertain scenarios
+* Designed to support rapid human decision-making
+
+---
+
+### 2. Context-Aware Alerts
+
+* Includes instance state and timestamp
+* Provides real-time process-level insights
+
+---
+
+### 3. Built-in Investigation Support
+
+* Retrieves top CPU-consuming processes via SSM
+* Eliminates the need for immediate SSH access
+
+---
+
+### 4. Actionable Guidance
+
+* Suggested next steps included in alerts
+* Reduces decision-making time during incidents
+
+---
+
+## ■ Design Rationale
+
+Not all failures should be automated.
+
+For cases such as CPU spikes:
+
+* Root cause may vary (application bug, traffic spike, batch processing, etc.)
+* Blind automation (e.g., restart) may worsen the situation
+
+Therefore, this scenario prioritizes:
+
+* Safety over automation
+* Decision speed over blind execution
+
+---
+
+## ■ Comparison Between Scenarios
+
+| Aspect      | Scenario 1 (L1)    | Scenario 2 (L2)  |
+| ----------- | ------------------ | ---------------- |
+| Recovery    | Automatic          | Manual           |
+| Purpose     | Immediate recovery | Decision support |
+| Risk        | Low                | Medium           |
+| Lambda Role | Execute action     | Provide context  |
+
+---
+
 ## ■ Directory Structure
 
-```id="0zixmp"
+```
 safe-auto-healing/
 ├── infra/
 │   ├── terraform/
@@ -135,6 +242,7 @@ safe-auto-healing/
 ├── app/
 │   └── lambda/
 ├── config/
+├── docs/
 └── README.md
 ```
 
@@ -154,10 +262,10 @@ safe-auto-healing/
 
 ## ■ Future Improvements
 
-* Scenario 2: Human-in-the-loop response
 * Scenario 3: Safe blocking (non-automatable cases)
 * Cooldown mechanism
 * Incident history tracking
+* Automated escalation
 
 ---
 
@@ -174,3 +282,4 @@ The key idea is:
 > "Do not automate everything. Design what should and should not be automated."
 
 ---
+
