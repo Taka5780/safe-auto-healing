@@ -23,9 +23,7 @@ AWS上で構築したインシデント対応自動化システムです。
 
 ### ● L1：Auto-Healing（自動復旧）
 
-<img src="docs/images/L
-
-ll1.png" width="700">
+<img src="docs/images/L1.png" width="700">
 
 安全な範囲の障害は自動復旧し、結果を即時通知します。
 
