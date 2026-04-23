@@ -1,285 +1,225 @@
-# Safe Auto-Healing System (AWS × Python)
+# Safe Auto-Healing System（安全志向のインシデント対応自動化）
 
-## ■ Overview
+AWS上で構築したインシデント対応自動化システムです。
+アラート検知後の対応プロセスを最適化し、MTTR（平均復旧時間）の短縮を目的としています。
 
-This project is an incident response automation system built on AWS.
-Its primary goal is to reduce MTTR (Mean Time To Recovery) by optimizing the response process after alert detection.
-
-Rather than fully automating everything, this system focuses on **safe and controlled automation**, while preserving human decision-making where necessary.
+完全自動化ではなく、安全性と人間の判断を重視した設計を採用しています。
 
 ---
 
-## ■ Background
+## ■ 概要
 
-In real-world operations, the following issues are common:
+本システムは、CloudWatchアラームをトリガーとして、
 
-* Delayed response due to missed email alerts
-* Lack of visibility in incident handling
-* Inconsistent recovery time depending on the operator
+* 自動復旧（Auto-Healing）
+* 人間による判断支援（Human-in-the-loop）
 
-To address these problems, this system redesigns the workflow from detection to response and provides a **faster and more reliable incident handling process**.
-
----
-
-## ■ Concept
-
-* Do not eliminate alerts (failures are inevitable)
-* Reduce MTTR instead of suppressing incidents
-* Automate only safe and repeatable operations
-* Keep human-in-the-loop where necessary
+を使い分けることで、
+**安全かつ迅速なインシデント対応**を実現します。
 
 ---
 
-## ■ Architecture
+## ■ Slack通知（実行結果の可視化）
 
-* EC2 (target instance)
-* Amazon CloudWatch (monitoring and alerting)
-* AWS Lambda (auto-healing and decision logic)
-* AWS Systems Manager (SSM) (remote command execution)
-* Slack (notification)
+### ● L1：Auto-Healing（自動復旧）
+
+<img src="docs/images/L
+
+ll1.png" width="700">
+
+安全な範囲の障害は自動復旧し、結果を即時通知します。
 
 ---
 
-## ■ Flow
+### ● L2：Human-in-the-loop（判断支援）
+
+<img src="docs/images/L2.png" width="700">
+
+判断が必要な障害は自動実行せず、
+コンテキストと推奨アクションを提示して人間の意思決定を支援します。
+
+---
+
+## ■ 解決した課題
+
+実運用においてよくある問題：
+
+* アラートの見逃し（メール依存）
+* 状況把握に時間がかかる
+* 対応の属人化
+* 復旧時間のばらつき
+
+本システムではこれらに対し、
+**「速く直す」ための仕組みを設計**しています。
+
+---
+
+## ■ コンセプト
+
+* 障害はなくならない（前提）
+* MTTRを短くすることに集中する
+* 安全な操作のみ自動化する
+* 判断が必要なものは人に任せる
+
+---
+
+## ■ アーキテクチャ
+
+EC2
+↓
+CloudWatch（監視・検知）
+↓
+Lambda（判定・制御）
+↓
+SSM（コマンド実行）
+↓
+Slack（通知）
+
+---
+
+## ■ フロー
 
 CloudWatch Alarm
 ↓
-Lambda (Python)
+Lambda（Python）
 ↓
-Action or Decision Support
+アクション or 判断支援
 ↓
-Slack Notification
+Slack通知
 
 ---
 
-# ■ Scenario 1: Auto-Healing (L1)
+## ■ シナリオ1：自動復旧（L1）
 
-## ■ Description
+### ● 概要
 
-Automatically recovers from minor and well-understood failures.
-
----
-
-## ■ Workflow
-
-1. CloudWatch detects an anomaly (e.g., CPU spike or HTTP failure)
-2. Lambda function is triggered
-3. Nginx is restarted via SSM
-4. HTTP health check verifies recovery
-5. Result is sent to Slack
+軽微かつ再現性の高い障害を自動復旧します。
 
 ---
 
-## ■ Slack Notification Example
+### ● フロー
 
-```text
-[Auto-Healing SUCCESS]
-
-Time: 2026-04-17 17:52:05 (JST)
-Instance: safe-auto-healing-web-server (i-xxxxxxxxxxxx)
-Alarm: safe-auto-healing-nginx-down
-Action: Nginx Restart (L1)
-Result: OK
-Detail: Nginx is back online and responding to HTTP 200.
-```
+* 異常検知（CPU / HTTP）
+* Lambda起動
+* SSM経由でNginx再起動
+* ヘルスチェック
+* Slack通知
 
 ---
 
-## ■ Key Features
+### ● 特徴
 
-### 1. Safe Target Control (Tag-based)
-
-```
-auto-healing=true
-```
-
-Only instances with this tag are eligible for auto-healing.
+* タグベース制御（auto-healing=true）
+* SSM実行状態の確認
+* リトライ機構（最大5回）
+* 成否をSlack通知
 
 ---
 
-### 2. SSM Execution Verification
-
-Handles intermediate states such as:
-
-```
-Pending / InProgress
-```
-
-Ensures actions are executed only after completion.
+👉 **安全に限定した自動化**
 
 ---
 
-### 3. Retry Mechanism
+## ■ シナリオ2：人間判断支援（L2）
 
-```
-Up to 5 health check attempts
-```
+### ● 概要
 
-Improves resilience against transient failures.
-
----
-
-### 4. Result Visibility
-
-* Success / Failure notifications via Slack
-* Error trace is included on failure
+自動化できない障害に対して、
+判断材料を提供し人間の意思決定を支援します。
 
 ---
 
-# ■ Scenario 2: Human-in-the-Loop Decision (L2)
+### ● フロー
 
-## ■ Description
-
-Handles incidents that cannot be safely auto-recovered.
-Instead of executing actions automatically, the system **assists human decision-making** by providing contextual information and recommended actions.
-
----
-
-## ■ Workflow
-
-1. CloudWatch detects an anomaly (e.g., CPU spike)
-2. Lambda function is triggered
-3. Diagnostic data is collected via SSM (e.g., top CPU processes)
-4. A structured alert is sent to Slack
-5. Human operator reviews and takes appropriate action
+* 異常検知（CPUなど）
+* Lambda起動
+* SSMで情報収集（topなど）
+* Slackに構造化通知
+* 人間が対応
 
 ---
 
-## ■ Slack Notification Example
+### ● 特徴
 
-```text
-🚨 [ALERT] Service Impact Suspected
-
-Instance: safe-auto-healing-web-server (i-xxxxxxxxxxxx)
-Alarm: CPU High
-Value: Over 30% (As detected)
-
-Additional Info:
-- Current status: running
-- Triggered at: 2026-04-20 02:08:21 (JST)
-- Recovery action: None (Investigation only)
-
-Suggested Actions:
-1. Check the process list below
-2. Reboot instance if necessary
-3. Check application logs
-
-Status: [UNRESOLVED]
+* 自動復旧しない設計
+* コンテキスト付き通知
+* プロセス情報取得
+* 推奨アクション提示
 
 ---
 
-Current Top Processes:
-PID   USER   %CPU   COMMAND
-...
-```
+👉 **「速く判断できる」ことを重視**
 
 ---
 
-## ■ Key Features
+## ■ 設計思想
 
-### 1. Human-Centric Design
+### ● すべてを自動化しない
 
-* No automatic recovery for uncertain scenarios
-* Designed to support rapid human decision-making
-
----
-
-### 2. Context-Aware Alerts
-
-* Includes instance state and timestamp
-* Provides real-time process-level insights
+誤った自動化はリスクを増やすため、
+安全な範囲のみ自動化する。
 
 ---
 
-### 3. Built-in Investigation Support
+### ● 障害は前提
 
-* Retrieves top CPU-consuming processes via SSM
-* Eliminates the need for immediate SSH access
-
----
-
-### 4. Actionable Guidance
-
-* Suggested next steps included in alerts
-* Reduces decision-making time during incidents
+ゼロにはできないため、
+復旧速度（MTTR）を最適化する。
 
 ---
 
-## ■ Design Rationale
+### ● 自動化と人間判断の分離
 
-Not all failures should be automated.
-
-For cases such as CPU spikes:
-
-* Root cause may vary (application bug, traffic spike, batch processing, etc.)
-* Blind automation (e.g., restart) may worsen the situation
-
-Therefore, this scenario prioritizes:
-
-* Safety over automation
-* Decision speed over blind execution
+* L1：自動復旧
+* L2：人間判断
 
 ---
 
-## ■ Comparison Between Scenarios
+### ● 安全性優先
 
-| Aspect      | Scenario 1 (L1)    | Scenario 2 (L2)  |
-| ----------- | ------------------ | ---------------- |
-| Recovery    | Automatic          | Manual           |
-| Purpose     | Immediate recovery | Decision support |
-| Risk        | Low                | Medium           |
-| Lambda Role | Execute action     | Provide context  |
+* 影響が大きい操作は自動化しない
+* コンテキスト提供を優先
 
 ---
 
-## ■ Directory Structure
-
-```
-safe-auto-healing/
-├── infra/
-│   ├── terraform/
-│   └── ansible/
-├── app/
-│   └── lambda/
-├── config/
-├── docs/
-└── README.md
-```
-
----
-
-## ■ Tech Stack
+## ■ 技術スタック
 
 * Python
 * AWS Lambda
 * Amazon CloudWatch
-* AWS Systems Manager (SSM)
+* AWS Systems Manager（SSM）
 * Terraform
 * Ansible
 * Slack Webhook
 
 ---
 
-## ■ Future Improvements
+## ■ 今後の拡張
 
-* Scenario 3: Safe blocking (non-automatable cases)
-* Cooldown mechanism
-* Incident history tracking
-* Automated escalation
-
----
-
-## ■ Summary
-
-This system achieves:
-
-* Faster incident response
-* Reduced MTTR
-* Safe and controlled automation
-
-The key idea is:
-
-> "Do not automate everything. Design what should and should not be automated."
+* L3（完全手動対応）
+* クールダウン機構
+* インシデント履歴管理
+* 自動エスカレーション
 
 ---
 
+## ■ 著者
+
+Akira Takahashi
+
+---
+
+## ■ まとめ
+
+本システムは以下を実現します：
+
+* MTTRの短縮
+* 安全な自動化
+* 人間とシステムの協調
+
+---
+
+**「すべてを自動化するのではなく、
+何を自動化すべきかを設計する」**
+
+という思想に基づいています。
