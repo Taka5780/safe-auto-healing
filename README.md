@@ -94,9 +94,14 @@ Slack通知
 軽微かつ再現性の高い障害を自動復旧します。
 
 ---
+### ● システムシーケンス（L1）
+今回設計したL1のインシデント検知から自動復旧、そしてSlack通知にいたる詳細なシーケンス図です。
+
+<img src="docs/images/L1_sequence_diagram.png" width="800" alt="L1 Sequence Diagram">
+
+---
 
 ### ● フロー
-
 * 異常検知（CPU / HTTP）
 * Lambda起動
 * SSM経由でNginx再起動
