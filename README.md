@@ -132,6 +132,14 @@ Slack通知
 
 ---
 
+### ● システムシーケンス（L2）
+
+インシデント検知後、システムが自律的に調査スクリプトを走らせ、人間にコンテキストを届けるまでのイベントフローです。
+
+<img src="docs/images/L2_sequence_diagram.png" width="800" alt="L2 Sequence Diagram">
+
+---
+
 ### ● フロー
 
 * 異常検知（CPUなど）
